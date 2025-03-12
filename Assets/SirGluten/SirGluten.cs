@@ -10,7 +10,7 @@ public class SirGluten : MonoBehaviour
     private SpriteRenderer spriteRenderer;
     private Animator animator;
     private float verticalInput, horizontalInput;
-    private float speed = 4f;
+    private float speed = 5f;
     private Rigidbody2D body;
     
 

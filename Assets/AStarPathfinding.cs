@@ -8,24 +8,61 @@ public class AStarPathfinding : MonoBehaviour
     [SerializeField] private float nodeSize = 1.0f;
     [SerializeField] private LayerMask obstacleLayer;
     [SerializeField] private GameObject gridVisualizer;
+    private List<GameObject> visualizers = new List<GameObject>();
     private GameObject sirGluten;
     private Vector2 destPos;
+    private List<Vector2> nextPosOnPath = new List<Vector2>();
+    private Rigidbody2D rb;
+    private Animator animator;
 
     private Dictionary<Vector2, Node> grid = new Dictionary<Vector2, Node>();
 
     void Start()
     {
         sirGluten = GameObject.Find("SirGluten");
+        rb = GetComponent<Rigidbody2D>();
+        animator = GetComponent<Animator>();
         
-//        StartCoroutine(CreatePath());
-        CreatePath();
+        StartCoroutine(Pathfind());
+        //CreatePath();
+    }
+    void Update() {
+        animator.SetFloat("horizontal", Mathf.Abs(rb.linearVelocity.x));
+        animator.SetFloat("vertical", rb.linearVelocity.y);
+        animator.SetBool("isMoving", rb.linearVelocity.x != 0 || rb.linearVelocity.y != 0);
+
+        if (rb.linearVelocity.x < 0) {
+            transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        } else if (rb.linearVelocity.x > 0) {
+            transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+        }
+        if (rb.linearVelocity.y != 0 && rb.linearVelocity.x == 0) {
+            transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+        }
     }
 
+    IEnumerator Pathfind(){
+  
+
+        if (nextPosOnPath.Count > 0) {
+            Vector2 movementDirection = (nextPosOnPath[0] - rb.position);
+            rb.linearVelocity = movementDirection.normalized * 4f;
+            nextPosOnPath.RemoveAt(0);
+        } else {
+            CreatePath();
+        }
+
+        yield return new WaitForSeconds(0.1f);
+        StartCoroutine(Pathfind());
+    }
+    
     
     void CreatePath() {
         GenerateGrid();
+        foreach(GameObject obj in visualizers) Destroy(obj);
+
+
         Vector2 destPos = new Vector2(Mathf.RoundToInt(sirGluten.transform.position.x), Mathf.RoundToInt(sirGluten.transform.position.y));
-        Debug.Log("DESTPOST: " + destPos);
         Vector2 curPos = new Vector2(Mathf.RoundToInt(transform.position.x), Mathf.RoundToInt(transform.position.y));
 
         List<Node> openList = new List<Node>(){grid[curPos]};
@@ -35,7 +72,7 @@ public class AStarPathfinding : MonoBehaviour
         Node foundPath = null;
         int k = 0;
         while(true) {
-            if (closedList.ContainsKey(destPos) || openList.Count == 0) 
+            if (closedList.ContainsKey(destPos)) 
             {
                 foundPath = closedList[destPos];
                 break;
@@ -66,8 +103,8 @@ public class AStarPathfinding : MonoBehaviour
 
                     if (!grid.ContainsKey(newPos) || closedList.ContainsKey(newPos)) continue;
 
-                    Debug.Log(newPos);
-                    Instantiate(gridVisualizer,newPos,Quaternion.identity);
+                    GameObject newVisualizer = Instantiate(gridVisualizer,newPos,Quaternion.identity);
+                    visualizers.Add(newVisualizer);
 
                     Node adjTile = new Node(newPos); 
                     adjTile.PrevNode = lowestF;
@@ -100,28 +137,28 @@ public class AStarPathfinding : MonoBehaviour
             }
 
             k++;
-            if (k > 200) break;
+            if (k > 800) break;
         }
 
-        Debug.Log(foundPath);
         Node curBacktrack = foundPath;
+        List<Node> path = new List<Node>();
         while (curBacktrack != null) {
-            Debug.Log(curBacktrack.Position);
             GameObject visualizer = Instantiate(gridVisualizer, curBacktrack.Position, Quaternion.identity);
+            visualizers.Add(visualizer);
             visualizer.GetComponent<SpriteRenderer>().color = Color.green;
+            visualizer.GetComponent<SpriteRenderer>().sortingOrder = 1;
+
+            path.Add(curBacktrack);
             curBacktrack = curBacktrack.PrevNode;
 
-            
-            
         }
-
-        
-
-        
-
-        //yield return new WaitForSeconds(1f);
-        //StartCoroutine(CreatePath());
-
+        if (path.Count > 5) {
+            nextPosOnPath.Add(path[path.Count - 2].Position);
+            nextPosOnPath.Add(path[path.Count - 3].Position);
+            nextPosOnPath.Add(path[path.Count - 4].Position);
+        } else {
+            nextPosOnPath.Add(destPos);
+        }
     }
 
     void GenerateGrid()
@@ -137,7 +174,7 @@ public class AStarPathfinding : MonoBehaviour
             {
                 Vector2 nodePosition = new Vector2(x, y);
 
-                if (Physics2D.OverlapCircle(nodePosition, nodeSize / 2, obstacleLayer) != null)
+                if (Physics2D.OverlapCircle(nodePosition, nodeSize / 3, obstacleLayer) == null)
                 {
                     grid[nodePosition] = new Node(nodePosition);
                 }
