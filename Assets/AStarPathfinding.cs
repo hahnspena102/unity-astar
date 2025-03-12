@@ -11,11 +11,13 @@ public class AStarPathfinding : MonoBehaviour
     private List<GameObject> visualizers = new List<GameObject>();
     private GameObject sirGluten;
     private Vector2 destPos;
-    private List<Vector2> nextPosOnPath = new List<Vector2>();
     private Rigidbody2D rb;
     private Animator animator;
+    
 
     private Dictionary<Vector2, Node> grid = new Dictionary<Vector2, Node>();
+    List<Node> path = new List<Node>();
+
 
     void Start()
     {
@@ -23,7 +25,7 @@ public class AStarPathfinding : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
         
-        StartCoroutine(Pathfind());
+        StartCoroutine(StartPathfinding());
         //CreatePath();
     }
     void Update() {
@@ -39,28 +41,37 @@ public class AStarPathfinding : MonoBehaviour
         if (rb.linearVelocity.y != 0 && rb.linearVelocity.x == 0) {
             transform.rotation = Quaternion.Euler(0f, 0f, 0f);
         }
+
+        if (path.Count > 0) {
+            
+            
+            Vector2 movementDirection = (path[path.Count-1].Position - rb.position);
+            rb.linearVelocity = movementDirection.normalized * 3f;
+            if (Vector2.Distance(rb.position, path[path.Count - 1].Position) < 0.4f) {
+                path.RemoveAt(path.Count - 1);
+            }
+        } 
     }
 
-    IEnumerator Pathfind(){
-  
+    IEnumerator StartPathfinding(){
+        
+        yield return new WaitForSeconds(1f);
+        CreatePath();
+        StartCoroutine(MoveTo());
+    }
 
-        if (nextPosOnPath.Count > 0) {
-            Vector2 movementDirection = (nextPosOnPath[0] - rb.position);
-            rb.linearVelocity = movementDirection.normalized * 4f;
-            nextPosOnPath.RemoveAt(0);
-        } else {
-            CreatePath();
-        }
+    IEnumerator MoveTo(){
+        CreatePath();
+        yield return new WaitForSeconds(2f);
 
-        yield return new WaitForSeconds(0.1f);
-        StartCoroutine(Pathfind());
+        StartCoroutine(MoveTo());
+        
     }
     
     
     void CreatePath() {
         GenerateGrid();
         foreach(GameObject obj in visualizers) Destroy(obj);
-
 
         Vector2 destPos = new Vector2(Mathf.RoundToInt(sirGluten.transform.position.x), Mathf.RoundToInt(sirGluten.transform.position.y));
         Vector2 curPos = new Vector2(Mathf.RoundToInt(transform.position.x), Mathf.RoundToInt(transform.position.y));
@@ -100,6 +111,9 @@ public class AStarPathfinding : MonoBehaviour
                 for (int j = -1; j < 2; j++) {
                     if (i == 0 && j==0) continue;
                     Vector2 newPos = new Vector2(lowestF.Position.x + i, lowestF.Position.y + j);
+                    if (i!=0 && j!=0) {
+                        if (!grid.ContainsKey(new Vector2(lowestF.Position.x + i, lowestF.Position.y)) && !grid.ContainsKey(new Vector2(lowestF.Position.x, lowestF.Position.y + j))) continue;
+                    }
 
                     if (!grid.ContainsKey(newPos) || closedList.ContainsKey(newPos)) continue;
 
@@ -109,7 +123,7 @@ public class AStarPathfinding : MonoBehaviour
                     Node adjTile = new Node(newPos); 
                     adjTile.PrevNode = lowestF;
                     if (i != 0 && j != 0) {
-                        adjTile.GCost = lowestF.GCost + 14;
+                        adjTile.GCost = lowestF.GCost + 16;
                     } else {
                         adjTile.GCost = lowestF.GCost + 10;
                     }
@@ -130,9 +144,6 @@ public class AStarPathfinding : MonoBehaviour
                     } else {
                         openList.Add(adjTile);
                     }
-                
-                    //Debug.Log($"ADJ TILES COUNT: {adjancentTiles.Count}");
-                    
                 }
             }
 
@@ -141,7 +152,9 @@ public class AStarPathfinding : MonoBehaviour
         }
 
         Node curBacktrack = foundPath;
-        List<Node> path = new List<Node>();
+        path = new List<Node>();
+
+
         while (curBacktrack != null) {
             GameObject visualizer = Instantiate(gridVisualizer, curBacktrack.Position, Quaternion.identity);
             visualizers.Add(visualizer);
@@ -150,14 +163,6 @@ public class AStarPathfinding : MonoBehaviour
 
             path.Add(curBacktrack);
             curBacktrack = curBacktrack.PrevNode;
-
-        }
-        if (path.Count > 5) {
-            nextPosOnPath.Add(path[path.Count - 2].Position);
-            nextPosOnPath.Add(path[path.Count - 3].Position);
-            nextPosOnPath.Add(path[path.Count - 4].Position);
-        } else {
-            nextPosOnPath.Add(destPos);
         }
     }
 
